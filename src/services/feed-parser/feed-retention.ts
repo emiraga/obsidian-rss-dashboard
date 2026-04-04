@@ -29,17 +29,25 @@ export function mergeFeedHistoryItems(
     if (!key) continue;
     if (seen.has(key)) continue;
     seen.add(key);
+    if (item.link) {
+      const linkKey = canonicalizeItemIdentityUrl(item.link);
+      if (linkKey) seen.add(linkKey);
+    }
     uniqueRefreshed.push(item);
   }
 
   const carriedForward: FeedItem[] = [];
   for (const item of existingItems || []) {
     const key = canonicalizeItemIdentityUrl(item.guid || item.link || "");
+    if (key && seen.has(key)) continue;
+    const linkKey = item.link
+      ? canonicalizeItemIdentityUrl(item.link)
+      : "";
+    if (linkKey && seen.has(linkKey)) continue;
     if (!key) continue;
-    if (!seen.has(key)) {
-      carriedForward.push(item);
-      seen.add(key);
-    }
+    carriedForward.push(item);
+    seen.add(key);
+    if (linkKey) seen.add(linkKey);
   }
 
   return [...carriedForward, ...uniqueRefreshed];

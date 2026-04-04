@@ -496,6 +496,17 @@ export class FeedParser {
         if (key) {
           existingItems.set(key, item);
         }
+        // Also index by link so items can be matched even when the guid
+        // format differs between stored data and server response (e.g.
+        // YouTube Atom "yt:video:ID" vs "https://youtube.com/watch?v=ID").
+        if (item.link) {
+          const linkKey = canonicalizeItemIdentityUrl(
+            this.convertToAbsoluteUrl(item.link, url),
+          );
+          if (linkKey && linkKey !== key && !existingItems.has(linkKey)) {
+            existingItems.set(linkKey, item);
+          }
+        }
       });
     }
 
@@ -545,7 +556,21 @@ export class FeedParser {
       if (seenGuids.has(itemGuid)) continue;
       seenGuids.add(itemGuid);
 
-      const existingItem = existingItems.get(itemGuid);
+      // Also mark the link as seen so carried-forward items with a different
+      // guid format but the same link are correctly filtered out.
+      const itemLinkKey = item.link
+        ? canonicalizeItemIdentityUrl(
+            this.convertToAbsoluteUrl(item.link, url),
+          )
+        : "";
+      if (itemLinkKey) seenGuids.add(itemLinkKey);
+
+      let existingItem = existingItems.get(itemGuid);
+      // Fallback: match by link when guid format differs between stored
+      // and parsed data (e.g. Atom "yt:video:ID" vs stored link URL).
+      if (!existingItem && itemLinkKey) {
+        existingItem = existingItems.get(itemLinkKey);
+      }
 
       if (existingItem) {
         if (
@@ -734,17 +759,24 @@ export class FeedParser {
           url,
         );
         const key = canonicalizeItemIdentityUrl(rawKey);
+        if (!key) continue;
+        if (seenGuids.has(key)) continue;
+        // Also check the link against seenGuids so already-matched items with
+        // a different guid format but the same link aren't duplicated.
+        const linkKey = item.link
+          ? canonicalizeItemIdentityUrl(
+              this.convertToAbsoluteUrl(item.link, url),
+            )
+          : "";
+        if (linkKey && seenGuids.has(linkKey)) continue;
         if (
-          key &&
-          !seenGuids.has(key) &&
-          !(
-            autoDeleteCutoffMs > 0 &&
-            !isProtectedItem(item) &&
-            getPubDateMs(item.pubDate) <= autoDeleteCutoffMs
-          )
+          autoDeleteCutoffMs > 0 &&
+          !isProtectedItem(item) &&
+          getPubDateMs(item.pubDate) <= autoDeleteCutoffMs
         ) {
-          carriedForward.push(item);
+          continue;
         }
+        carriedForward.push(item);
       }
     }
 
