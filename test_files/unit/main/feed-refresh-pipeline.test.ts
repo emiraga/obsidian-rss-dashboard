@@ -59,10 +59,18 @@ interface TestFeedParser {
   refreshAllFeeds: ReturnType<typeof vi.fn>;
 }
 
+interface TestFeedDebugLogger {
+  logStartup: ReturnType<typeof vi.fn>;
+  logPreRefresh: ReturnType<typeof vi.fn>;
+  logServerResponse: ReturnType<typeof vi.fn>;
+  logPostRefresh: ReturnType<typeof vi.fn>;
+}
+
 interface TestPlugin {
   settings: typeof DEFAULT_SETTINGS;
   saveData: ReturnType<typeof vi.fn>;
   feedParser: TestFeedParser;
+  feedDebugLogger: TestFeedDebugLogger;
   refreshFeeds: (selectedFeeds?: Feed[]) => Promise<void>;
   activeRefreshState: Map<string, unknown>;
   getActiveDashboardView: ReturnType<typeof vi.fn>;
@@ -85,6 +93,13 @@ function createPluginWithSettings(feeds: Feed[]): TestPlugin {
   testPlugin.feedParser = {
     refreshFeed: vi.fn(),
     refreshAllFeeds: vi.fn(),
+  };
+
+  testPlugin.feedDebugLogger = {
+    logStartup: vi.fn().mockResolvedValue(undefined),
+    logPreRefresh: vi.fn().mockResolvedValue(undefined),
+    logServerResponse: vi.fn().mockResolvedValue(undefined),
+    logPostRefresh: vi.fn().mockResolvedValue(undefined),
   };
 
   testPlugin.getActiveDashboardView = vi.fn();

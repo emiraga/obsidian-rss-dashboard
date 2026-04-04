@@ -48,6 +48,8 @@ export class FeedParser {
   private parser: CustomXMLParser;
   private getFolders: () => Folder[];
   private getCorsProxyEnabled: () => boolean;
+  private debugLogger: import("../feed-debug-logger").FeedDebugLogger | null =
+    null;
 
   constructor(
     displaySettings: DisplaySettings,
@@ -89,6 +91,12 @@ export class FeedParser {
       enableApplePodcastsOpen: false,
       defaultPlaySpeed: 1,
     };
+  }
+
+  setDebugLogger(
+    logger: import("../feed-debug-logger").FeedDebugLogger,
+  ): void {
+    this.debugLogger = logger;
   }
 
   private resolveFeedIconUrl(
@@ -447,6 +455,20 @@ export class FeedParser {
     const parsed = this.parser.parseString(responseText);
 
     assertParsedFeedHasEntries(parsed, options);
+
+    // Debug: log the raw server response items
+    if (this.debugLogger && existingFeed) {
+      void this.debugLogger.logServerResponse(
+        existingFeed,
+        parsed.items.map(
+          (i: { guid?: string; link?: string; title?: string }) => ({
+            guid: i.guid,
+            link: i.link,
+            title: i.title,
+          }),
+        ),
+      );
+    }
 
     const feedTitle = existingFeed?.title || parsed.title || "Unnamed feed";
 

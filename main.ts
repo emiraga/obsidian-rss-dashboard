@@ -59,6 +59,7 @@ import { MediaService } from "./src/services/media-service";
 
 import { ImportOpmlModal } from "./src/modals/import-opml-modal";
 import { AddFeedModal } from "./src/modals/feed-manager/add-feed-modal";
+import { FeedDebugLogger } from "./src/services/feed-debug-logger";
 import {
   normalizeRefreshIntervalMinutes,
   isValidUrl,
@@ -259,6 +260,7 @@ export default class RssDashboardPlugin extends Plugin {
   settings!: RssDashboardSettings;
   feedParser!: FeedParser;
   articleSaver!: ArticleSaver;
+  feedDebugLogger!: FeedDebugLogger;
   private backupService!: BackupService;
   protected folderService!: FolderService;
   private importExportService!: ImportExportService;
@@ -618,6 +620,13 @@ public activeRefreshState = new Map<string, FeedRefreshState>();
 
     try {
       this.initializeSettingsBackedServices();
+      this.feedDebugLogger = new FeedDebugLogger(
+        this.app,
+        this.manifest.dir ?? "",
+      );
+      this.feedParser.setDebugLogger(this.feedDebugLogger);
+
+      void this.feedDebugLogger.logStartup(this.settings.feeds);
 
       if (Platform.isMobile) {
         this.applyMobileOptimizations();
@@ -1204,6 +1213,14 @@ public activeRefreshState = new Map<string, FeedRefreshState>();
       }
 
       new Notice(`Refreshing ${feedNoticeText}...`);
+
+      // Debug: log pre-refresh state for each feed (fire-and-forget, like
+      // the post-refresh logging — must not perturb the refresh pipeline's
+      // timing/concurrency). The article snapshot is captured synchronously.
+      for (const feed of feedsToRefresh) {
+        void this.feedDebugLogger.logPreRefresh(feed);
+      }
+
       if (feedsToRefresh.length === 1) {
         await this.refreshSingleFeed(feedsToRefresh[0], feedNoticeText);
         return;
@@ -2600,6 +2617,8 @@ public activeRefreshState = new Map<string, FeedRefreshState>();
     const updatedFeed = await this.refreshFeedWithTimeout(feed);
     this.mergeRefreshedFeed(updatedFeed);
 
+    void this.feedDebugLogger.logPostRefresh(updatedFeed);
+
     await this.validateSavedArticles();
     this.settings.lastRefreshTimestamp = Date.now();
     await this.saveSettings();
@@ -2672,6 +2691,7 @@ public activeRefreshState = new Map<string, FeedRefreshState>();
         try {
           const updatedFeed = await this.refreshFeedWithTimeout(currentFeed);
           this.mergeRefreshedFeed(updatedFeed);
+          void this.feedDebugLogger.logPostRefresh(updatedFeed);
         } catch (error) {
           const isTimedOut =
             error instanceof Error && error.message === "Timed out";

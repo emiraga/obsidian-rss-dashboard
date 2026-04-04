@@ -29,6 +29,7 @@ vi.mock("../../../src/services/feed-parser", () => ({
   FeedParser: class FeedParser {
     parseFeed = mockParseFeed;
     refreshAllFeeds = mockRefreshAllFeeds;
+    setDebugLogger = vi.fn();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     constructor(_media?: any, _availableTags?: any) {}
   },
@@ -189,6 +190,14 @@ async function createPluginInstance(app: MockApp): Promise<RssDashboardPlugin> {
         return el;
       },
     });
+
+  // Stub the debug logger so refresh paths that log don't require onload()
+  (plugin as unknown as { feedDebugLogger: unknown }).feedDebugLogger = {
+    logStartup: vi.fn().mockResolvedValue(undefined),
+    logPreRefresh: vi.fn().mockResolvedValue(undefined),
+    logServerResponse: vi.fn().mockResolvedValue(undefined),
+    logPostRefresh: vi.fn().mockResolvedValue(undefined),
+  };
 
   return plugin;
 }
